@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // デッキコレクションのルール
+    match /decks/{deckId} {
+      // 読み取り: 自分が作成したデッキのみ
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // 作成: ログイン済みで、userIdが自分のIDと一致する場合
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // 更新: 自分が作成したデッキのみ
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      
+      // 削除: 自分が作成したデッキのみ
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // デフォルトではすべての操作を拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
