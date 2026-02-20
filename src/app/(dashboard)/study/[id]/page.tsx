@@ -16,6 +16,7 @@ export default function StudyModePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [direction, setDirection] = useState<"normal" | "reverse">("normal");
+  const [shuffle, setShuffle] = useState(false);
 
   useEffect(() => {
     loadDeck();
@@ -161,9 +162,77 @@ export default function StudyModePage() {
                   </div>
                 </div>
 
+                <div className="mb-6 p-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    カードの順序
+                  </h3>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={() => setShuffle(false)}
+                      className={`flex-1 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        !shuffle
+                          ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900 dark:border-indigo-400"
+                          : "border-gray-300 dark:border-gray-600 hover:border-gray-400"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              !shuffle
+                                ? "border-indigo-600 dark:border-indigo-400"
+                                : "border-gray-400"
+                            }`}
+                          >
+                            {!shuffle && (
+                              <div className="w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-400"></div>
+                            )}
+                          </div>
+                          <span className="font-semibold text-gray-900 dark:text-white">
+                            順番通り
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 ml-7">
+                          登録した順序で学習します
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setShuffle(true)}
+                      className={`flex-1 p-4 rounded-lg border-2 transition-all duration-200 ${
+                        shuffle
+                          ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900 dark:border-indigo-400"
+                          : "border-gray-300 dark:border-gray-600 hover:border-gray-400"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              shuffle
+                                ? "border-indigo-600 dark:border-indigo-400"
+                                : "border-gray-400"
+                            }`}
+                          >
+                            {shuffle && (
+                              <div className="w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-400"></div>
+                            )}
+                          </div>
+                          <span className="font-semibold text-gray-900 dark:text-white">
+                            ランダム
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 ml-7">
+                          カードをシャッフルします
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <button
-                    onClick={() => router.push(`/study/${deckId}/flashcard?direction=${direction}`)}
+                    onClick={() => router.push(`/study/${deckId}/flashcard?direction=${direction}&shuffle=${shuffle}`)}
                     className="group relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl p-8 transition-all duration-300 hover:shadow-2xl"
                   >
                     <div className="relative z-10">
@@ -181,7 +250,7 @@ export default function StudyModePage() {
                   </button>
 
                   <button
-                    onClick={() => router.push(`/study/${deckId}/typing?direction=${direction}`)}
+                    onClick={() => router.push(`/study/${deckId}/typing?direction=${direction}&shuffle=${shuffle}`)}
                     className="group relative overflow-hidden bg-gradient-to-br from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white rounded-xl p-8 transition-all duration-300 hover:shadow-2xl"
                   >
                     <div className="relative z-10">

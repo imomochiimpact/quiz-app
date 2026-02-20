@@ -5,8 +5,6 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getDeck } from "@/lib/store/deckStore";
 import { Card } from "@/types/quiz";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 // カードの配列をシャッフルする関数
 function shuffleArray<T>(array: T[]): T[] {
@@ -25,6 +23,7 @@ export default function TypingPage() {
   const { user } = useAuth();
   const deckId = params.id as string;
   const direction = searchParams.get("direction") || "normal";
+  const shuffle = searchParams.get("shuffle") === "true";
 
   const [deckTitle, setDeckTitle] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
@@ -68,15 +67,9 @@ export default function TypingPage() {
 
       setDeckTitle(deck.title);
       
-      // シャッフルしたカードを使用
-      const shuffledCards = shuffleArray(deck.cards);
-      setCards(shuffledCards);
-
-      // 進捗を読み込む
-      const progress = await loadProgress();
-      if (progress !== null && progress < shuffledCards.length) {
-        setCurrentIndex(progress);
-      }
+      // シャッフルオプションが有効な場合のみシャッフル
+      const finalCards = shuffle ? shuffleArray(deck.cards) : deck.cards;
+      setCards(finalCards);
     } catch (err) {
       setError("デッキの読み込みに失敗しました");
       console.error(err);
@@ -85,40 +78,7 @@ export default function TypingPage() {
     }
   };
 
-  // 進捗を読み込む
-  const loadProgress = async (): Promise<number | null> => {
-    if (!user) return null;
 
-    try {
-      const deckRef = doc(db, "decks", deckId);
-      const deckSnap = await getDoc(deckRef);
-      
-      if (deckSnap.exists()) {
-        const data = deckSnap.data();
-        const userProgress = data.userProgress || {};
-        const typingIndex = userProgress[user.uid]?.typingIndex;
-        return typeof typingIndex === "number" ? typingIndex : null;
-      }
-    } catch (err) {
-      console.error("進捗の読み込みに失敗しました:", err);
-    }
-    return null;
-  };
-
-  // 進捗を保存する
-  const saveProgress = async (index: number) => {
-    if (!user) return;
-
-    try {
-      const deckRef = doc(db, "decks", deckId);
-      await updateDoc(deckRef, {
-        [`userProgress.${user.uid}.typingIndex`]: index,
-        [`userProgress.${user.uid}.lastStudied`]: new Date(),
-      });
-    } catch (err) {
-      console.error("進捗の保存に失敗しました:", err);
-    }
-  };
 
   // 解答をチェック
   const checkAnswer = () => {
@@ -190,11 +150,8 @@ export default function TypingPage() {
   };
 
   // 次の問題へ
-  const nextQuestion = async () => {
+  const nextQuestion = () => {
     const nextIndex = currentIndex + 1;
-    
-    // 進捗を保存（次に進む前）
-    await saveProgress(nextIndex);
     
     setUserAnswer("");
     setShowResult(false);
@@ -208,10 +165,7 @@ export default function TypingPage() {
   };
 
   // 学習をリセット
-  const resetStudy = async () => {
-    // 進捗をリセット
-    await saveProgress(0);
-    
+  const resetStudy = () => {
     setCurrentIndex(0);
     setUserAnswer("");
     setShowResult(false);
@@ -221,9 +175,11 @@ export default function TypingPage() {
     setRequiresRetype(false);
     setRetypeTarget("");
     
-    // カードを再シャッフル
-    const shuffledCards = shuffleArray(cards);
-    setCards(shuffledCards);
+    // シャッフルオプションが有効な場合のみ再シャッフル
+    if (shuffle) {
+      const shuffledCards = shuffleArray(cards);
+      setCards(shuffledCards);
+    }
   };
 
   if (loading) {
@@ -282,63 +238,57 @@ export default function TypingPage() {
                   <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                     {deckTitle}
                   </h1>
-                  <span className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {currentIndex + 1} / {cards.length}
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div
-                    className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-300"
+                    className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div className="mt-4 flex gap-6 text-base">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">✓</span>
-                    <span className="text-green-600 dark:text-green-400 font-semibold">
-                      正解: {correctCount}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">✗</span>
-                    <span className="text-red-600 dark:text-red-400 font-semibold">
-                      不正解: {incorrectCount}
-                    </span>
-                  </div>
+                <div className="mt-3 flex gap-4 text-sm">
+                  <span className="text-green-600 dark:text-green-400">
+                    正解: {correctCount}
+                  </span>
+                  <span className="text-red-600 dark:text-red-400">
+                    不正解: {incorrectCount}
+                  </span>
                 </div>
               </div>
 
               {isLastCard && showResult && (!requiresRetype || retypeCompleted) ? (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 text-center">
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                    学習完了！
+                    学習完了
                   </h2>
                   <div className="mb-8 space-y-2">
                     <p className="text-lg text-gray-700 dark:text-gray-300">
                       全 {cards.length} 問を解答しました
                     </p>
-                    <div className="flex justify-center gap-6 mt-6">
-                      <div className="text-center bg-green-50 dark:bg-green-900 p-4 rounded-lg">
-                        <div className="text-4xl font-bold text-green-600 dark:text-green-400">
+                    <div className="flex justify-center gap-6 mt-4">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                           {correctCount}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                           正解
                         </div>
                       </div>
-                      <div className="text-center bg-red-50 dark:bg-red-900 p-4 rounded-lg">
-                        <div className="text-4xl font-bold text-red-600 dark:text-red-400">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-red-600 dark:text-red-400">
                           {incorrectCount}
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                           不正解
                         </div>
                       </div>
-                      <div className="text-center bg-indigo-50 dark:bg-indigo-900 p-4 rounded-lg">
-                        <div className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
                           {cards.length > 0 ? Math.round((correctCount / cards.length) * 100) : 0}%
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                           正解率
                         </div>
                       </div>
@@ -471,7 +421,7 @@ export default function TypingPage() {
                                 : "text-blue-700 dark:text-blue-300"
                             }`}
                           >
-                            {status === "correct" ? "✓ 正解！" : "✓ リタイプ完了"}
+                            {status === "correct" ? "正解" : "リタイプ完了"}
                           </p>
                           <div className="space-y-2">
                             <div>
@@ -490,7 +440,7 @@ export default function TypingPage() {
                           disabled={isLastCard}
                           className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium py-4 px-6 rounded-lg transition-colors duration-200 text-lg"
                         >
-                          {isLastCard ? "最後の問題です" : "次の問題へ →"}
+                          {isLastCard ? "最後の問題です" : "次の問題へ"}
                         </button>
                       </div>
                     )}

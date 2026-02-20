@@ -6,6 +6,16 @@ import { useAuth } from "@/lib/auth-context";
 import { getDeck } from "@/lib/store/deckStore";
 import { Card } from "@/types/quiz";
 
+// カードの配列をシャッフルする関数
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export default function FlashcardPage() {
   const router = useRouter();
   const params = useParams();
@@ -13,6 +23,7 @@ export default function FlashcardPage() {
   const { user } = useAuth();
   const deckId = params.id as string;
   const direction = searchParams.get("direction") || "normal";
+  const shuffle = searchParams.get("shuffle") === "true";
 
   const [deckTitle, setDeckTitle] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
@@ -49,7 +60,10 @@ export default function FlashcardPage() {
       }
 
       setDeckTitle(deck.title);
-      setCards(deck.cards);
+      
+      // シャッフルオプションが有効な場合のみシャッフル
+      const finalCards = shuffle ? shuffleArray(deck.cards) : deck.cards;
+      setCards(finalCards);
     } catch (err) {
       setError("デッキの読み込みに失敗しました");
       console.error(err);
@@ -91,6 +105,12 @@ export default function FlashcardPage() {
     setIsFlipped(false);
     setKnownCount(0);
     setUnknownCount(0);
+    
+    // シャッフルオプションが有効な場合のみ再シャッフル
+    if (shuffle) {
+      const shuffledCards = shuffleArray(cards);
+      setCards(shuffledCards);
+    }
   };
 
   if (loading) {
