@@ -230,7 +230,7 @@ export default function StudyModePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   <button
                     onClick={() => router.push(`/study/${deckId}/flashcard?direction=${direction}&shuffle=${shuffle}`)}
                     className="group relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl p-8 transition-all duration-300 hover:shadow-2xl"
@@ -266,6 +266,24 @@ export default function StudyModePage() {
                     </div>
                     <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
                   </button>
+
+                  <button
+                    onClick={() => router.push(`/study/${deckId}/choice?direction=${direction}&shuffle=${shuffle}`)}
+                    className="group relative overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-xl p-8 transition-all duration-300 hover:shadow-2xl"
+                  >
+                    <div className="relative z-10">
+                      <div className="text-4xl font-bold mb-4">QUIZ</div>
+                      <h2 className="text-2xl font-bold mb-3">選択問題</h2>
+                      <p className="text-orange-100">
+                        複数の選択肢から正しい答えを選びます
+                      </p>
+                      <div className="mt-6 flex items-center justify-center gap-2">
+                        <span className="text-sm font-medium">学習を開始</span>
+                        <span className="text-xl">→</span>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                  </button>
                 </div>
               </>
             )}
@@ -282,6 +300,10 @@ export default function StudyModePage() {
                 <div className="flex gap-3">
                   <span className="font-semibold text-green-600 dark:text-green-400">タイピング:</span>
                   <span>問題を見て答えを入力。スペルや表記を正確に覚えられます。</span>
+                </div>
+                <div className="flex gap-3">
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">選択問題:</span>
+                  <span>複数の選択肢から正解を選択。素早く知識を確認できます。</span>
                 </div>
               </div>
             </div>
