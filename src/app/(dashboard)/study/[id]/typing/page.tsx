@@ -434,9 +434,9 @@ export default function TypingPage() {
 
                         {/* 強制リタイプフォーム */}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                          <div className="bg-yellow-50 dark:bg-yellow-900 border-2 border-yellow-500 rounded-lg p-4">
-                        
-                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            正しい答えを入力して、もう一度挑戦しましょう
+                          </p>
                           <input
                             type="text"
                             value={userAnswer}
