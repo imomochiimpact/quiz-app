@@ -28,6 +28,7 @@ export default function StudyModePage() {
   const [resetting, setResetting] = useState(false);
   const [testQuestionCount, setTestQuestionCount] = useState(10);
   const [testTypingRatio, setTestTypingRatio] = useState(50);
+  const [shuffleEnabled, setShuffleEnabled] = useState(false);
 
   useEffect(() => {
     loadDeck();
@@ -175,12 +176,25 @@ export default function StudyModePage() {
 
                 {/* 学習モード選択 */}
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    学習モードを選択
-                  </h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      学習モードを選択
+                    </h3>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={shuffleEnabled}
+                        onChange={(e) => setShuffleEnabled(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        ランダム出題
+                      </span>
+                    </label>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <button
-                      onClick={() => router.push(`/study/${deckId}/typing?mode=continue`)}
+                      onClick={() => router.push(`/study/${deckId}/typing?mode=continue${shuffleEnabled ? '&shuffle=true' : ''}`)}
                       className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -192,7 +206,7 @@ export default function StudyModePage() {
                     </button>
 
                     <button
-                      onClick={() => router.push(`/study/${deckId}/choice?mode=continue`)}
+                      onClick={() => router.push(`/study/${deckId}/choice?mode=continue${shuffleEnabled ? '&shuffle=true' : ''}`)}
                       className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -216,7 +230,7 @@ export default function StudyModePage() {
                     </button>
 
                     <button
-                      onClick={() => router.push(`/study/${deckId}/flashcard?mode=continue`)}
+                      onClick={() => router.push(`/study/${deckId}/flashcard?mode=continue${shuffleEnabled ? '&shuffle=true' : ''}`)}
                       className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">

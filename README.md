@@ -1,38 +1,76 @@
-# 暗記カードアプリ
+# Quiz Card Learning App
 
-Next.js と Firebase を使用した暗記カード学習アプリケーションです。
+A flashcard learning application built with Next.js and Firebase, featuring adaptive learning algorithms and multiple study modes.
 
-## 機能
+## Features
 
-- Firebase Authentication による認証（Google ログイン、メール/パスワード）
-- Firestore によるデッキの作成・取得・削除
-- デッキ内のカードの追加・編集・削除
-- 学習モード
-  - 一問一答（フラッシュカード）: カードをクリックして問題と答えを確認
-  - タイピングモード: 答えを入力して正誤判定
-- レスポンシブデザイン（モバイル対応）
-- ダークモード対応
+### Authentication
+- Firebase Authentication (Google Sign-in, Email/Password)
+- Secure user data management
 
-## セットアップ
+### Deck Management
+- Create, read, update, and delete decks via Firestore
+- Add, edit, and delete cards within decks
+- Track learning progress per card
 
-### 1. 依存パッケージのインストール
+### Learning Modes
+
+#### 1. **Normal Study Mode (Typing)**
+- Type answers to test your knowledge
+- Forced re-typing on incorrect answers
+- Multi-round learning system:
+  - Round 1: Study all cards
+  - Round 2+: Only review incorrectly answered cards
+  - Continue until all cards are mastered
+
+#### 2. **Normal Study Mode (Multiple Choice)**
+- Select answers from multiple choices
+- Reduces typing burden while maintaining active recall
+- Same multi-round learning system as typing mode
+
+#### 3. **Flashcard Mode**
+- Click cards to reveal answers
+- Mark cards as "Known" or "Unknown"
+- Quick review for rapid memorization
+
+#### 4. **Test Mode**
+- Customize question count (1 to all cards)
+- Adjust typing/multiple choice ratio (0-100%)
+- Randomized question order
+- Final results with correct/incorrect breakdown
+
+### Progress Tracking
+- **Mastery Rate**: Visual progress bar showing overall achievement
+- **Attempt Count**: Track how many times each card was answered incorrectly
+- **Session Results**: View correct and incorrect answers after each round
+- **Completion Screen**: See attempt counts for all cards when achieving 100%
+
+### Additional Features
+- **Random Shuffle**: Optional randomization of card order
+- **Dark Mode**: Full dark mode support
+- **Responsive Design**: Mobile-friendly interface
+- **Progress Reset**: Clear all progress to start fresh
+
+## Setup
+
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Firebase プロジェクトの作成
+### 2. Create Firebase Project
 
-1. [Firebase Console](https://console.firebase.google.com/) にアクセス
-2. 新しいプロジェクトを作成
-3. Authentication を有効化
-   - Google ログインを有効化
-   - メール/パスワード認証を有効化
-4. Firestore Database を作成（テストモードで開始可能）
+1. Access [Firebase Console](https://console.firebase.google.com/)
+2. Create a new project
+3. Enable Authentication
+   - Enable Google Sign-in
+   - Enable Email/Password authentication
+4. Create Firestore Database (can start in test mode)
 
-### 3. 環境変数の設定
+### 3. Configure Environment Variables
 
-`.env.local` ファイルに以下の値を設定してください：
+Create a `.env.local` file with the following values:
 
 ```
 NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key-here
@@ -43,27 +81,27 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
 NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
 ```
 
-これらの値は Firebase Console の「プロジェクトの設定」から取得できます。
+These values can be obtained from Firebase Console > Project Settings.
 
-### 4. Firestore セキュリティルールの設定
+### 4. Configure Firestore Security Rules
 
-Firebase Console で Firestore Database のセキュリティルールを設定してください：
+Set up Firestore security rules in Firebase Console:
 
-1. Firebase Console > Firestore Database > ルール タブ を開く
-2. `firestore.rules` ファイルの内容をコピーして貼り付ける
-3. 「公開」ボタンをクリック
+1. Open Firebase Console > Firestore Database > Rules tab
+2. Copy and paste the contents of `firestore.rules` file
+3. Click "Publish"
 
-このルールにより、ユーザーは自分が作成したデッキのみにアクセスできます。
+These rules ensure users can only access decks they created.
 
-### 5. 開発サーバーの起動
+### 5. Start Development Server
 
 ```bash
 npm run dev
 ```
 
-ブラウザで [http://localhost:3000](http://localhost:3000) を開いてアプリケーションにアクセスできます。
+Open [http://localhost:3000](http://localhost:3000) in your browser to access the application.
 
-## プロジェクト構成
+## Project Structure
 
 ```
 quiz-app/
@@ -73,65 +111,110 @@ quiz-app/
 │   │   │   ├── decks/
 │   │   │   │   ├── [id]/
 │   │   │   │   │   └── edit/
-│   │   │   │   │       └── page.tsx  # カード編集ページ
+│   │   │   │   │       └── page.tsx  # Card editing page
 │   │   │   │   └── new/
-│   │   │   │       └── page.tsx      # デッキ作成ページ
+│   │   │   │       └── page.tsx      # Deck creation page
 │   │   │   └── study/
 │   │   │       └── [id]/
-│   │   │           ├── page.tsx      # 学習モード選択
+│   │   │           ├── page.tsx      # Study mode selection
 │   │   │           ├── flashcard/
-│   │   │           │   └── page.tsx  # 一問一答モード
-│   │   │           └── typing/
-│   │   │               └── page.tsx  # タイピングモード
+│   │   │           │   └── page.tsx  # Flashcard mode
+│   │   │           ├── typing/
+│   │   │           │   └── page.tsx  # Typing mode
+│   │   │           ├── choice/
+│   │   │           │   └── page.tsx  # Multiple choice mode
+│   │   │           └── test/
+│   │   │               └── page.tsx  # Test mode
 │   │   ├── login/
-│   │   │   └── page.tsx              # ログインページ
-│   │   ├── layout.tsx                 # ルートレイアウト
-│   │   └── page.tsx                   # ダッシュボード
+│   │   │   └── page.tsx              # Login page
+│   │   ├── layout.tsx                 # Root layout
+│   │   └── page.tsx                   # Dashboard
 │   ├── lib/
 │   │   ├── store/
-│   │   │   └── deckStore.ts          # Firestore操作
-│   │   ├── firebase.ts             # Firebase 初期化
-│   │   ├── auth-context.tsx        # 認証コンテキスト
-│   │   └── mock-data.ts            # モックデータ
+│   │   │   ├── deckStore.ts          # Firestore operations for decks
+│   │   │   └── cardStatusStore.ts    # Card progress tracking
+│   │   ├── firebase.ts             # Firebase initialization
+│   │   └── auth-context.tsx        # Authentication context
 │   └── types/
-│       └── quiz.ts                 # 型定義
-├── firestore.rules                 # Firestoreセキュリティルール
-├── .env.local                      # 環境変数（要作成）
+│       └── quiz.ts                 # Type definitions
+├── firestore.rules                 # Firestore security rules
+├── .env.local                      # Environment variables (must create)
 └── package.json
 ```
 
-## 技術スタック
+## Tech Stack
 
-- Next.js 15
-- TypeScript
-- Firebase (Authentication, Firestore)
-- Tailwind CSS
+- **Framework**: Next.js 16.1.6
+- **Language**: TypeScript
+- **Backend**: Firebase (Authentication, Firestore)
+- **Styling**: Tailwind CSS
+- **Build Tool**: Turbopack
 
-## .env.local に設定が必要な項目
+## Environment Variables
 
-| 項目名 | 説明 |
-|--------|------|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API キー |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase 認証ドメイン |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase プロジェクト ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase ストレージバケット |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase メッセージング送信者 ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase アプリ ID |
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase API key |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase authentication domain |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase app ID |
 
-## 開発
+## Data Structure
 
-プロジェクトのビルド：
+### Deck Document
+```typescript
+{
+  id: string;
+  title: string;
+  userId: string;
+  createdAt: Timestamp;
+  cards: Card[];
+  userStatus?: {
+    [userId: string]: {
+      [cardId: string]: {
+        isAnswered: boolean;
+        isCorrect: boolean;
+        attemptCount?: number;
+      }
+    }
+  }
+}
+```
+
+### Card Object
+```typescript
+{
+  id: string;
+  question: string;
+  answer: string;
+}
+```
+
+## Learning Algorithm
+
+1. **Initial Round**: Study all cards in the deck
+2. **Subsequent Rounds**: Only review cards answered incorrectly in previous rounds
+3. **Attempt Tracking**: 
+   - Correct answers: Don't increment attempt count
+   - Incorrect answers: Increment attempt count
+4. **Completion**: When all cards are answered correctly, display final statistics
+
+## Development
+
+Build the project:
 
 ```bash
 npm run build
 ```
 
-本番環境での実行：
+Run in production:
 
 ```bash
 npm start
 ```
 
-## ライセンス
+## License
 
 MIT
