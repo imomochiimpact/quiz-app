@@ -5,6 +5,11 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getDeck } from "@/lib/store/deckStore";
 import { Card } from "@/types/quiz";
+import {
+  getUserCardStatuses,
+  updateCardStatus,
+  UserStatus,
+} from "@/lib/store/cardStatusStore";
 
 // カードの配列をシャッフルする関数
 function shuffleArray<T>(array: T[]): T[] {
@@ -24,9 +29,11 @@ export default function FlashcardPage() {
   const deckId = params.id as string;
   const direction = searchParams.get("direction") || "normal";
   const shuffle = searchParams.get("shuffle") === "true";
+  const mode = searchParams.get("mode") || "normal";
 
   const [deckTitle, setDeckTitle] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
+  const [userStatus, setUserStatus] = useState<UserStatus>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,9 +43,11 @@ export default function FlashcardPage() {
 
   useEffect(() => {
     loadDeck();
-  }, [deckId]);
+  }, [deckId, user]);
 
   const loadDeck = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       setError("");
@@ -49,7 +58,7 @@ export default function FlashcardPage() {
         return;
       }
 
-      if (user && deck.userId !== user.uid) {
+      if (deck.userId !== user.uid) {
         setError("このデッキにアクセスする権限がありません");
         return;
       }
@@ -61,8 +70,34 @@ export default function FlashcardPage() {
 
       setDeckTitle(deck.title);
       
+      // ユーザーの進捗状態を取得
+      const statuses = await getUserCardStatuses(deckId, user.uid);
+      setUserStatus(statuses);
+      
+      // モードに応じてカードをフィルタリング
+      let filteredCards = deck.cards;
+      if (mode === "review") {
+        // 復習モード: 不正解だったカードのみ
+        filteredCards = deck.cards.filter((card) => {
+          const status = statuses[card.id];
+          return status && status.isAnswered && !status.isCorrect;
+        });
+
+        if (filteredCards.length === 0) {
+          setError("復習するカードがありません。全て正解済みです！");
+          return;
+        }
+      } else if (mode === "continue") {
+        // 続きから: 未回答のカードから開始
+        const answeredCount = deck.cards.filter((card) => {
+          const status = statuses[card.id];
+          return status && status.isAnswered;
+        }).length;
+        setCurrentIndex(answeredCount);
+      }
+      
       // シャッフルオプションが有効な場合のみシャッフル
-      const finalCards = shuffle ? shuffleArray(deck.cards) : deck.cards;
+      const finalCards = shuffle ? shuffleArray(filteredCards) : filteredCards;
       setCards(finalCards);
     } catch (err) {
       setError("デッキの読み込みに失敗しました");
@@ -76,13 +111,49 @@ export default function FlashcardPage() {
     setIsFlipped(!isFlipped);
   };
 
-  const handleKnown = () => {
+  const handleKnown = async () => {
+    if (!user) return;
+    
+    const currentCard = cards[currentIndex];
     setKnownCount(knownCount + 1);
+    
+    // Firestoreに正解を保存
+    try {
+      await updateCardStatus(deckId, user.uid, currentCard.id, {
+        isAnswered: true,
+        isCorrect: true,
+      });
+      setUserStatus((prev) => ({
+        ...prev,
+        [currentCard.id]: { isAnswered: true, isCorrect: true },
+      }));
+    } catch (err) {
+      console.error("状態の保存に失敗しました:", err);
+    }
+    
     nextCard();
   };
 
-  const handleUnknown = () => {
+  const handleUnknown = async () => {
+    if (!user) return;
+    
+    const currentCard = cards[currentIndex];
     setUnknownCount(unknownCount + 1);
+    
+    // Firestoreに不正解を保存
+    try {
+      await updateCardStatus(deckId, user.uid, currentCard.id, {
+        isAnswered: true,
+        isCorrect: false,
+      });
+      setUserStatus((prev) => ({
+        ...prev,
+        [currentCard.id]: { isAnswered: true, isCorrect: false },
+      }));
+    } catch (err) {
+      console.error("状態の保存に失敗しました:", err);
+    }
+    
     nextCard();
   };
 

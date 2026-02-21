@@ -5,6 +5,13 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getDeck } from "@/lib/store/deckStore";
 import { Card } from "@/types/quiz";
+import {
+  getUserCardStatuses,
+  updateCardStatus,
+  countAnsweredCards,
+  type UserStatus,
+  type CardStatus,
+} from "@/lib/store/cardStatusStore";
 
 // カードの配列をシャッフルする関数
 function shuffleArray<T>(array: T[]): T[] {
@@ -24,6 +31,7 @@ export default function TypingPage() {
   const deckId = params.id as string;
   const direction = searchParams.get("direction") || "normal";
   const shuffle = searchParams.get("shuffle") === "true";
+  const mode = searchParams.get("mode") || "normal";
 
   const [deckTitle, setDeckTitle] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
@@ -37,6 +45,8 @@ export default function TypingPage() {
   const [incorrectCount, setIncorrectCount] = useState(0);
   const [requiresRetype, setRequiresRetype] = useState(false);
   const [retypeTarget, setRetypeTarget] = useState("");
+  const [userStatus, setUserStatus] = useState<UserStatus>({});
+  const [allCards, setAllCards] = useState<Card[]>([]);
 
   useEffect(() => {
     loadDeck();
@@ -66,9 +76,30 @@ export default function TypingPage() {
       }
 
       setDeckTitle(deck.title);
-      
+      setAllCards(deck.cards);
+
+      // ユーザーのカード状態を取得
+      const statuses = await getUserCardStatuses(deckId, user.uid);
+      setUserStatus(statuses);
+
+      let filteredCards = [...deck.cards];
+
+      // モードに応じてカードをフィルタリング
+      if (mode === "review") {
+        // 間違えた問題のみ（isCorrectがfalseまたは未回答のもの）
+        filteredCards = deck.cards.filter(card => !statuses[card.id]?.isCorrect);
+        if (filteredCards.length === 0) {
+          setError("復習する問題がありません。すべて正解済みです");
+          return;
+        }
+      } else if (mode === "continue") {
+        // 回答済み問題数をカウントして、その次から開始
+        const answeredCount = countAnsweredCards(statuses);
+        setCurrentIndex(Math.min(answeredCount, deck.cards.length - 1));
+      }
+
       // シャッフルオプションが有効な場合のみシャッフル
-      const finalCards = shuffle ? shuffleArray(deck.cards) : deck.cards;
+      const finalCards = shuffle ? shuffleArray(filteredCards) : filteredCards;
       setCards(finalCards);
     } catch (err) {
       setError("デッキの読み込みに失敗しました");
@@ -81,7 +112,9 @@ export default function TypingPage() {
 
 
   // 解答をチェック
-  const checkAnswer = () => {
+  const checkAnswer = async () => {
+    if (!user) return;
+
     const currentCard = cards[currentIndex];
     const correctAnswer = direction === "reverse" ? currentCard.question : currentCard.answer;
     const normalizedUserAnswer = userAnswer.trim();
@@ -94,6 +127,20 @@ export default function TypingPage() {
       setStatus("correct");
       setShowResult(true);
       setCorrectCount(correctCount + 1);
+
+      // Firestoreに正解を保存
+      try {
+        await updateCardStatus(deckId, user.uid, currentCard.id, {
+          isAnswered: true,
+          isCorrect: true,
+        });
+        setUserStatus((prev) => ({
+          ...prev,
+          [currentCard.id]: { isAnswered: true, isCorrect: true },
+        }));
+      } catch (err) {
+        console.error("状態の保存に失敗しました:", err);
+      }
     } else {
       setStatus("wrong");
       setShowResult(true);
@@ -101,11 +148,27 @@ export default function TypingPage() {
       // 不正解の場合、強制リタイプモードに移行
       setRequiresRetype(true);
       setRetypeTarget(correctAnswer);
+
+      // Firestoreに不正解を保存
+      try {
+        await updateCardStatus(deckId, user.uid, currentCard.id, {
+          isAnswered: true,
+          isCorrect: false,
+        });
+        setUserStatus((prev) => ({
+          ...prev,
+          [currentCard.id]: { isAnswered: true, isCorrect: false },
+        }));
+      } catch (err) {
+        console.error("状態の保存に失敗しました:", err);
+      }
     }
   };
 
   // 「わからない」ボタンの処理
-  const handleDontKnow = () => {
+  const handleDontKnow = async () => {
+    if (!user) return;
+
     const currentCard = cards[currentIndex];
     const correctAnswer = direction === "reverse" ? currentCard.question : currentCard.answer;
     
@@ -116,6 +179,20 @@ export default function TypingPage() {
     // 強制リタイプモードに移行
     setRequiresRetype(true);
     setRetypeTarget(correctAnswer);
+
+    // Firestoreに不正解を保存
+    try {
+      await updateCardStatus(deckId, user.uid, currentCard.id, {
+        isAnswered: true,
+        isCorrect: false,
+      });
+      setUserStatus((prev) => ({
+        ...prev,
+        [currentCard.id]: { isAnswered: true, isCorrect: false },
+      }));
+    } catch (err) {
+      console.error("状態の保存に失敗しました:", err);
+    }
   };
 
   // リタイプのチェック
@@ -131,7 +208,7 @@ export default function TypingPage() {
     return false;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!userAnswer.trim()) return;
@@ -145,7 +222,7 @@ export default function TypingPage() {
       }
     } else if (!showResult) {
       // 通常の解答モード
-      checkAnswer();
+      await checkAnswer();
     }
   };
 
