@@ -184,22 +184,22 @@ export default function StudyModePage() {
                       className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                        通常学習（続きから）
+                        通常学習（タイピング）
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        前回の続きから学習を再開します
+                        入力形式で学習を進めます
                       </p>
                     </button>
 
                     <button
-                      onClick={() => router.push(`/study/${deckId}/typing?mode=review`)}
-                      className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900 transition-all"
+                      onClick={() => router.push(`/study/${deckId}/choice?mode=continue`)}
+                      className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                        間違えた問題のみ
+                        通常学習（選択問題）
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        不正解の問題だけを復習します
+                        選択肢から答えを選んで学習
                       </p>
                     </button>
 
@@ -216,7 +216,7 @@ export default function StudyModePage() {
                     </button>
 
                     <button
-                      onClick={() => router.push(`/study/${deckId}/flashcard?shuffle=true`)}
+                      onClick={() => router.push(`/study/${deckId}/flashcard?mode=continue`)}
                       className="p-6 text-left border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900 transition-all"
                     >
                       <div className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -304,10 +304,7 @@ export default function StudyModePage() {
                   </h3>
                   <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                     <p>
-                      <span className="font-semibold">通常学習:</span> すべての問題を順番に学習します
-                    </p>
-                    <p>
-                      <span className="font-semibold">間違えた問題のみ:</span> 不正解だった問題を復習します
+                      <span className="font-semibold">通常学習:</span> 続きから学習を再開し、一周終えたら間違えた問題のみを繰り返します
                     </p>
                     <p>
                       <span className="font-semibold">テストモード:</span> 問題数と形式を選んで本番形式で挑戦

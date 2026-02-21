@@ -4,6 +4,7 @@ import { db } from "@/lib/firebase";
 export interface CardStatus {
   isAnswered: boolean;
   isCorrect: boolean;
+  attemptCount?: number;
 }
 
 export interface UserStatus {

@@ -9,6 +9,7 @@ import {
   getUserCardStatuses,
   updateCardStatus,
   countAnsweredCards,
+  resetUserStatus,
   type UserStatus,
   type CardStatus,
 } from "@/lib/store/cardStatusStore";
@@ -47,6 +48,9 @@ export default function TypingPage() {
   const [retypeTarget, setRetypeTarget] = useState("");
   const [userStatus, setUserStatus] = useState<UserStatus>({});
   const [allCards, setAllCards] = useState<Card[]>([]);
+  const [sessionResults, setSessionResults] = useState<{ [cardId: string]: boolean }>({});
+  const [currentRound, setCurrentRound] = useState(1);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     loadDeck();
@@ -82,22 +86,47 @@ export default function TypingPage() {
       const statuses = await getUserCardStatuses(deckId, user.uid);
       setUserStatus(statuses);
 
-      let filteredCards = [...deck.cards];
-
-      // モードに応じてカードをフィルタリング
-      if (mode === "review") {
-        // 間違えた問題のみ（isCorrectがfalseまたは未回答のもの）
-        filteredCards = deck.cards.filter(card => !statuses[card.id]?.isCorrect);
-        if (filteredCards.length === 0) {
-          setError("復習する問題がありません。すべて正解済みです");
-          return;
-        }
-      } else if (mode === "continue") {
-        // 回答済み問題数をカウントして、その次から開始
-        const answeredCount = countAnsweredCards(statuses);
-        setCurrentIndex(Math.min(answeredCount, deck.cards.length - 1));
+      // 全てのカードが正解済みかチェック
+      const allCorrect = deck.cards.every(card => statuses[card.id]?.isCorrect);
+      
+      if (allCorrect && deck.cards.length > 0) {
+        // 全問正解済みの場合、完了画面を表示
+        setIsCompleted(true);
+        setCards(deck.cards);
+        setLoading(false);
+        return;
       }
 
+      // 未回答のカードがあるかチェック
+      const unansweredCards = deck.cards.filter(card => !statuses[card.id]?.isAnswered);
+      
+      let filteredCards: Card[];
+      let round = 1;
+
+      if (unansweredCards.length > 0) {
+        // 未回答のカードがある場合は、全カードから続きを開始
+        filteredCards = [...deck.cards];
+        const answeredCount = deck.cards.filter(card => statuses[card.id]?.isAnswered).length;
+        setCurrentIndex(answeredCount);
+        round = 1;
+      } else {
+        // 全カード回答済みの場合は、不正解のカードのみ出題（2周目以降）
+        filteredCards = deck.cards.filter(card => !statuses[card.id]?.isCorrect);
+        
+        if (filteredCards.length === 0) {
+          // 全問正解済み
+          setIsCompleted(true);
+          setCards(deck.cards);
+          setLoading(false);
+          return;
+        }
+        
+        setCurrentIndex(0);
+        round = 2; // 2周目以降
+      }
+
+      setCurrentRound(round);
+      
       // シャッフルオプションが有効な場合のみシャッフル
       const finalCards = shuffle ? shuffleArray(filteredCards) : filteredCards;
       setCards(finalCards);
@@ -123,20 +152,25 @@ export default function TypingPage() {
     // 完全一致チェック（大文字小文字区別なし）
     const correct = normalizedUserAnswer.toLowerCase() === normalizedCorrectAnswer.toLowerCase();
     
+    // 現在のattemptCountを取得
+    const currentAttemptCount = userStatus[currentCard.id]?.attemptCount || 0;
+    
     if (correct) {
       setStatus("correct");
       setShowResult(true);
       setCorrectCount(correctCount + 1);
+      setSessionResults({ ...sessionResults, [currentCard.id]: true });
 
-      // Firestoreに正解を保存
+      // Firestoreに正解を保存（attemptCountはインクリメントしない）
       try {
         await updateCardStatus(deckId, user.uid, currentCard.id, {
           isAnswered: true,
           isCorrect: true,
+          attemptCount: currentAttemptCount,
         });
         setUserStatus((prev) => ({
           ...prev,
-          [currentCard.id]: { isAnswered: true, isCorrect: true },
+          [currentCard.id]: { isAnswered: true, isCorrect: true, attemptCount: currentAttemptCount },
         }));
       } catch (err) {
         console.error("状態の保存に失敗しました:", err);
@@ -145,19 +179,21 @@ export default function TypingPage() {
       setStatus("wrong");
       setShowResult(true);
       setIncorrectCount(incorrectCount + 1);
+      setSessionResults({ ...sessionResults, [currentCard.id]: false });
       // 不正解の場合、強制リタイプモードに移行
       setRequiresRetype(true);
       setRetypeTarget(correctAnswer);
 
-      // Firestoreに不正解を保存
+      // Firestoreに不正解を保存（attemptCountをインクリメント）
       try {
         await updateCardStatus(deckId, user.uid, currentCard.id, {
           isAnswered: true,
           isCorrect: false,
+          attemptCount: currentAttemptCount + 1,
         });
         setUserStatus((prev) => ({
           ...prev,
-          [currentCard.id]: { isAnswered: true, isCorrect: false },
+          [currentCard.id]: { isAnswered: true, isCorrect: false, attemptCount: currentAttemptCount + 1 },
         }));
       } catch (err) {
         console.error("状態の保存に失敗しました:", err);
@@ -172,23 +208,28 @@ export default function TypingPage() {
     const currentCard = cards[currentIndex];
     const correctAnswer = direction === "reverse" ? currentCard.question : currentCard.answer;
     
+    // 現在のattemptCountを取得
+    const currentAttemptCount = userStatus[currentCard.id]?.attemptCount || 0;
+    
     setStatus("wrong");
     setShowResult(true);
     setIncorrectCount(incorrectCount + 1);
+    setSessionResults({ ...sessionResults, [currentCard.id]: false });
     setUserAnswer(""); // 入力をリセット
     // 強制リタイプモードに移行
     setRequiresRetype(true);
     setRetypeTarget(correctAnswer);
 
-    // Firestoreに不正解を保存
+    // Firestoreに不正解を保存（attemptCountをインクリメント）
     try {
       await updateCardStatus(deckId, user.uid, currentCard.id, {
         isAnswered: true,
         isCorrect: false,
+        attemptCount: currentAttemptCount + 1,
       });
       setUserStatus((prev) => ({
         ...prev,
-        [currentCard.id]: { isAnswered: true, isCorrect: false },
+        [currentCard.id]: { isAnswered: true, isCorrect: false, attemptCount: currentAttemptCount + 1 },
       }));
     } catch (err) {
       console.error("状態の保存に失敗しました:", err);
@@ -227,7 +268,7 @@ export default function TypingPage() {
   };
 
   // 次の問題へ
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     const nextIndex = currentIndex + 1;
     
     setUserAnswer("");
@@ -238,6 +279,27 @@ export default function TypingPage() {
     
     if (nextIndex < cards.length) {
       setCurrentIndex(nextIndex);
+    } else {
+      // 一周終了 - 次の周に進むべきか確認
+      if (!user) return;
+      
+      // 最新のステータスを取得
+      const statuses = await getUserCardStatuses(deckId, user.uid);
+      const incorrectCards = allCards.filter(card => !statuses[card.id]?.isCorrect);
+      
+      if (incorrectCards.length === 0) {
+        // 全問正解 - 完了画面へ
+        setIsCompleted(true);
+        setCurrentIndex(cards.length);
+      } else {
+        // 不正解があれば次の周へ
+        setCards(incorrectCards);
+        setCurrentIndex(0);
+        setCorrectCount(0);
+        setIncorrectCount(0);
+        setSessionResults({});
+        setCurrentRound(currentRound + 1);
+      }
     }
   };
 
@@ -335,13 +397,79 @@ export default function TypingPage() {
                 </div>
               </div>
 
-              {isLastCard && showResult && (!requiresRetype || retypeCompleted) ? (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 text-center">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                    学習完了
+              {/* 全問正解完了画面 */}
+              {isCompleted ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
+                  <h2 className="text-3xl font-bold text-green-600 dark:text-green-400 mb-6 text-center">
+                    全問正解！
+                  </h2>
+                  <p className="text-center text-gray-700 dark:text-gray-300 mb-8">
+                    すべての問題を正解しました！
+                  </p>
+
+                  {/* 各カードの回答試行数 */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      各問題の回答試行数
+                    </h3>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {allCards.map((card) => {
+                        const attemptCount = userStatus[card.id]?.attemptCount || 0;
+                        return (
+                          <div
+                            key={card.id}
+                            className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center"
+                          >
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {card.question}
+                              </p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {card.answer}
+                              </p>
+                            </div>
+                            <div className="ml-4 text-right">
+                              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                                {attemptCount}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">
+                                回間違え
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ボタン */}
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                      onClick={async () => {
+                        if (user) {
+                          await resetUserStatus(deckId, user.uid);
+                          window.location.reload();
+                        }
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                    >
+                      また1から始める
+                    </button>
+                    <button
+                      onClick={() => router.push(`/study/${deckId}`)}
+                      className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                    >
+                      モード選択に戻る
+                    </button>
+                  </div>
+                </div>
+              ) : isLastCard && showResult && (!requiresRetype || retypeCompleted) ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4 text-center">
+                    {currentRound === 1 ? "1周目完了" : `${currentRound}周目完了`}
                   </h2>
                   <div className="mb-8 space-y-2">
-                    <p className="text-lg text-gray-700 dark:text-gray-300">
+                    <p className="text-lg text-gray-700 dark:text-gray-300 text-center">
                       全 {cards.length} 問を解答しました
                     </p>
                     <div className="flex justify-center gap-6 mt-4">
@@ -371,18 +499,75 @@ export default function TypingPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 今回の正解/不正解問題リスト */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                      今回の結果
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* 正解した問題 */}
+                      <div>
+                        <h4 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">
+                          正解した問題 ({correctCount}問)
+                        </h4>
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {cards
+                            .filter((card) => sessionResults[card.id] === true)
+                            .map((card) => (
+                              <div
+                                key={card.id}
+                                className="p-2 bg-green-50 dark:bg-green-900 rounded text-sm"
+                              >
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {card.question}
+                                </p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                  {card.answer}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      {/* 不正解だった問題 */}
+                      <div>
+                        <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">
+                          不正解だった問題 ({incorrectCount}問)
+                        </h4>
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {cards
+                            .filter((card) => sessionResults[card.id] === false)
+                            .map((card) => (
+                              <div
+                                key={card.id}
+                                className="p-2 bg-red-50 dark:bg-red-900 rounded text-sm"
+                              >
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {card.question}
+                                </p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                  {card.answer}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
-                      onClick={resetStudy}
+                      onClick={nextQuestion}
                       className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200"
                     >
-                      もう一度学習する
+                      {incorrectCount > 0 ? "間違えた問題に進む" : "次へ"}
                     </button>
                     <button
-                      onClick={() => router.push("/")}
+                      onClick={() => router.push(`/study/${deckId}`)}
                       className="bg-gray-600 hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200"
                     >
-                      ダッシュボードに戻る
+                      モード選択に戻る
                     </button>
                   </div>
                 </div>

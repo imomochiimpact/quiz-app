@@ -8,7 +8,9 @@ import { Card } from "@/types/quiz";
 import {
   getUserCardStatuses,
   updateCardStatus,
-  UserStatus,
+  resetUserStatus,
+  type UserStatus,
+  type CardStatus,
 } from "@/lib/store/cardStatusStore";
 
 // カードの配列をシャッフルする関数
@@ -77,6 +79,9 @@ export default function ChoicePage() {
   const [error, setError] = useState("");
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
+  const [sessionResults, setSessionResults] = useState<{ [cardId: string]: boolean }>({});
+  const [currentRound, setCurrentRound] = useState(1);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     loadDeck();
@@ -111,37 +116,56 @@ export default function ChoicePage() {
       }
 
       setDeckTitle(deck.title);
+      setAllCards(deck.cards);
       
       // ユーザーの進捗状態を取得
       const statuses = await getUserCardStatuses(deckId, user.uid);
       setUserStatus(statuses);
       
-      // モードに応じてカードをフィルタリング
-      let filteredCards = deck.cards;
-      if (mode === "review") {
-        // 復習モード: 不正解だったカードのみ
-        filteredCards = deck.cards.filter((card) => {
-          const status = statuses[card.id];
-          return status && status.isAnswered && !status.isCorrect;
-        });
+      // 全てのカードが正解済みかチェック
+      const allCorrect = deck.cards.every(card => statuses[card.id]?.isCorrect);
+      
+      if (allCorrect && deck.cards.length > 0) {
+        // 全問正解済みの場合、完了画面を表示
+        setIsCompleted(true);
+        setCards(deck.cards);
+        setLoading(false);
+        return;
+      }
 
+      // 未回答のカードがあるかチェック
+      const unansweredCards = deck.cards.filter(card => !statuses[card.id]?.isAnswered);
+      
+      let filteredCards: Card[];
+      let round = 1;
+
+      if (unansweredCards.length > 0) {
+        // 未回答のカードがある場合は、全カードから続きを開始
+        filteredCards = [...deck.cards];
+        const answeredCount = deck.cards.filter(card => statuses[card.id]?.isAnswered).length;
+        setCurrentIndex(answeredCount);
+        round = 1;
+      } else {
+        // 全カード回答済みの場合は、不正解のカードのみ出題（2周目以降）
+        filteredCards = deck.cards.filter(card => !statuses[card.id]?.isCorrect);
+        
         if (filteredCards.length === 0) {
-          setError("復習するカードがありません。全て正解済みです！");
+          // 全問正解済み
+          setIsCompleted(true);
+          setCards(deck.cards);
+          setLoading(false);
           return;
         }
-      } else if (mode === "continue") {
-        // 続きから: 未回答のカードから開始
-        const answeredCount = deck.cards.filter((card) => {
-          const status = statuses[card.id];
-          return status && status.isAnswered;
-        }).length;
-        setCurrentIndex(answeredCount);
+        
+        setCurrentIndex(0);
+        round = 2; // 2周目以降
       }
+
+      setCurrentRound(round);
       
       // シャッフルオプションが有効な場合のみシャッフル
       const finalCards = shuffle ? shuffleArray(filteredCards) : filteredCards;
       setCards(finalCards);
-      setAllCards(deck.cards);
       
       // 最初の問題の選択肢を生成（全てのカードから選択肢を生成）
       generateInitialChoices(finalCards, deck.cards, direction);
@@ -173,28 +197,49 @@ export default function ChoicePage() {
     
     const isCorrect = choice === correctAnswer;
     
+    // 現在のattemptCountを取得
+    const currentAttemptCount = userStatus[currentCard.id]?.attemptCount || 0;
+    
     if (isCorrect) {
       setCorrectCount(correctCount + 1);
+      setSessionResults({ ...sessionResults, [currentCard.id]: true });
+      
+      // Firestoreに状態を保存（attemptCountはインクリメントしない）
+      try {
+        await updateCardStatus(deckId, user.uid, currentCard.id, {
+          isAnswered: true,
+          isCorrect: true,
+          attemptCount: currentAttemptCount,
+        });
+        setUserStatus((prev) => ({
+          ...prev,
+          [currentCard.id]: { isAnswered: true, isCorrect: true, attemptCount: currentAttemptCount },
+        }));
+      } catch (err) {
+        console.error("状態の保存に失敗しました:", err);
+      }
     } else {
       setIncorrectCount(incorrectCount + 1);
-    }
-
-    // Firestoreに状態を保存
-    try {
-      await updateCardStatus(deckId, user.uid, currentCard.id, {
-        isAnswered: true,
-        isCorrect,
-      });
-      setUserStatus((prev) => ({
-        ...prev,
-        [currentCard.id]: { isAnswered: true, isCorrect },
-      }));
-    } catch (err) {
-      console.error("状態の保存に失敗しました:", err);
+      setSessionResults({ ...sessionResults, [currentCard.id]: false });
+      
+      // Firestoreに状態を保存（attemptCountをインクリメント）
+      try {
+        await updateCardStatus(deckId, user.uid, currentCard.id, {
+          isAnswered: true,
+          isCorrect: false,
+          attemptCount: currentAttemptCount + 1,
+        });
+        setUserStatus((prev) => ({
+          ...prev,
+          [currentCard.id]: { isAnswered: true, isCorrect: false, attemptCount: currentAttemptCount + 1 },
+        }));
+      } catch (err) {
+        console.error("状態の保存に失敗しました:", err);
+      }
     }
   };
 
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     const nextIndex = currentIndex + 1;
     
     setSelectedChoice(null);
@@ -206,6 +251,33 @@ export default function ChoicePage() {
       const correctAnswer = direction === "reverse" ? nextCard.question : nextCard.answer;
       const newChoices = generateChoices(correctAnswer, allCards.length > 0 ? allCards : cards, direction, nextCard.id);
       setChoices(newChoices);
+    } else {
+      // 一周終了 - 次の周に進むべきか確認
+      if (!user) return;
+      
+      // 最新のステータスを取得
+      const statuses = await getUserCardStatuses(deckId, user.uid);
+      const incorrectCards = allCards.filter(card => !statuses[card.id]?.isCorrect);
+      
+      if (incorrectCards.length === 0) {
+        // 全問正解 - 完了画面へ
+        setIsCompleted(true);
+        setCurrentIndex(cards.length);
+      } else {
+        // 不正解があれば次の周へ
+        setCards(incorrectCards);
+        setCurrentIndex(0);
+        setCorrectCount(0);
+        setIncorrectCount(0);
+        setSessionResults({});
+        setCurrentRound(currentRound + 1);
+        
+        // 新しい問題の選択肢を生成
+        const firstCard = incorrectCards[0];
+        const correctAnswer = direction === "reverse" ? firstCard.question : firstCard.answer;
+        const newChoices = generateChoices(correctAnswer, allCards, direction, firstCard.id);
+        setChoices(newChoices);
+      }
     }
   };
 

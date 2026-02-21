@@ -158,10 +158,7 @@ export default function TestPage() {
     setUserAnswer("");
     setSelectedChoice(null);
     setShowResult(false);
-    
-    if (nextIndex < questions.length) {
-      setCurrentIndex(nextIndex);
-    }
+    setCurrentIndex(nextIndex);
   };
 
   const submitTest = async () => {
@@ -256,6 +253,63 @@ export default function TestPage() {
                 </div>
               </div>
             </div>
+
+            {/* 問題リスト */}
+            <div className="mb-8 text-left">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                問題の結果
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 正解した問題 */}
+                <div>
+                  <h4 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">
+                    正解した問題 ({correctCount}問)
+                  </h4>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {questions
+                      .filter((q) => answers[q.card.id] === true)
+                      .map((q) => (
+                        <div
+                          key={q.card.id}
+                          className="p-2 bg-green-50 dark:bg-green-900 rounded text-sm"
+                        >
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {q.card.question}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            {q.card.answer}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* 不正解だった問題 */}
+                <div>
+                  <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">
+                    不正解だった問題 ({incorrectCount}問)
+                  </h4>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {questions
+                      .filter((q) => answers[q.card.id] === false)
+                      .map((q) => (
+                        <div
+                          key={q.card.id}
+                          className="p-2 bg-red-50 dark:bg-red-900 rounded text-sm"
+                        >
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {q.card.question}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            {q.card.answer}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={submitTest}
